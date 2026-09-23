@@ -1,0 +1,8 @@
+{
+  "count": 150,
+  "variants": {
+    "desktop": 1280,
+    "mobile": 768
+  },
+  "generatedFrom": "public/images/herosection"
+}
