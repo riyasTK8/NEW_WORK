@@ -1,8 +1,10 @@
 {
-  "count": 150,
+  "count": 240,
+  "sourceFrames": 240,
   "variants": {
-    "desktop": 1280,
-    "mobile": 768
+    "mobile": 768,
+    "desktop": 1536,
+    "ultra": 2048
   },
   "generatedFrom": "public/images/herosection"
 }

@@ -14,7 +14,7 @@ import { ramp } from "@/lib/motion";
  */
 export default function HeroTextScene({ scene, progress, reduce }) {
   const ctaRef = useRef(null);
-  const { at, label, heading, body, lead, cta } = scene;
+  const { at, label, heading, body, cta } = scene;
 
   /*
    * A scene anchored to the very start of the scroll must already be on
@@ -66,46 +66,72 @@ export default function HeroTextScene({ scene, progress, reduce }) {
     for (const a of el.querySelectorAll("a")) a.tabIndex = on ? 0 : -1;
   });
 
-  const Heading = "h2";
+  /*
+   * Bottom-left, with the closing beat centred.
+   *
+   * Type scales on BOTH axes. Width alone is not enough: a phone in landscape
+   * is 844px wide but only ~390px tall, so a width-only scale would serve it
+   * desktop-sized type in a viewport with no vertical room. The
+   * max-height queries pull the scale back on short viewports, which is what
+   * keeps this working on landscape phones and small laptops.
+   */
+  const anchor = cta
+    ? "items-end justify-center text-center"
+    : "items-end justify-start";
 
   return (
     <m.div
+      data-scene={scene.id}
       style={{ opacity, y, filter }}
-      className={`${
+      className={
         reduce
           ? "relative z-10 w-full"
-          : "pointer-events-none absolute inset-0 z-10 flex items-end sm:items-center"
-      }`}
+          : `pointer-events-none absolute inset-0 z-10 flex ${anchor}`
+      }
     >
-      {/*
-       * Portrait viewports crop this 16:9 footage down to its middle, which is
-       * exactly where the subjects are -- so on mobile the copy drops into the
-       * lower third rather than sitting on someone's face. From `sm` up there
-       * is real negative space on the left, and the copy moves into it.
-       */}
-      <div className="w-full max-w-2xl px-6 pb-20 sm:px-10 sm:pb-0 lg:px-16 xl:pl-24">
-        <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-300 sm:text-xs">
-          {label}
-        </p>
+      <div
+        className={`w-full px-5 pb-12 sm:px-8 sm:pb-16 md:px-10 lg:px-14 xl:pl-20 2xl:pl-28
+          [@media(max-height:560px)]:pb-6 [@media(max-height:700px)]:pb-8
+          ${cta ? "max-w-2xl" : "max-w-[34rem] md:max-w-xl lg:max-w-2xl"}`}
+      >
+        {label ? (
+          <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-200 sm:mb-4 sm:text-xs">
+            {label}
+          </p>
+        ) : null}
 
-        <Heading className="text-balance text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl">
-          {heading}
-        </Heading>
+        {heading ? (
+          <h2
+            className="text-balance font-semibold leading-[1.08] tracking-tight text-white
+              text-[1.75rem] sm:text-4xl md:text-5xl lg:text-[3.25rem] 2xl:text-6xl
+              [@media(max-height:560px)]:text-2xl [@media(max-height:700px)]:text-3xl
+              [@media(max-height:700px)_and_(min-width:1024px)]:text-4xl"
+          >
+            {heading}
+          </h2>
+        ) : null}
 
-        <p className="mt-5 max-w-lg text-pretty text-base leading-relaxed text-white/80 sm:text-lg">
-          {body}
-        </p>
+        {body ? (
+          <p
+            className="mt-3 max-w-lg text-pretty leading-relaxed text-white/90
+              text-sm sm:mt-5 sm:text-base lg:text-lg
+              [@media(max-height:640px)]:mt-2 [@media(max-height:640px)]:text-sm
+              [@media(max-height:560px)]:hidden"
+          >
+            {body}
+          </p>
+        ) : null}
 
         {cta ? (
           <div
             ref={ctaRef}
             style={{ pointerEvents: reduce ? "auto" : "none" }}
-            className="mt-9 flex flex-wrap items-center gap-3"
+            className="mt-6 flex flex-wrap items-center justify-center gap-2.5 sm:mt-8 sm:gap-3 [@media(max-height:560px)]:mt-4"
           >
             <a
               href="#contact"
               tabIndex={reduce ? 0 : -1}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-[#05070e] shadow-lg shadow-black/40 transition-transform duration-200 hover:scale-[1.03]"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#05070e] shadow-lg shadow-black/40 transition-transform duration-200 hover:scale-[1.03] sm:px-6 sm:py-3.5"
             >
               Start a project
               <ArrowRight size={16} strokeWidth={2.2} aria-hidden="true" />
@@ -113,7 +139,7 @@ export default function HeroTextScene({ scene, progress, reduce }) {
             <a
               href="#projects"
               tabIndex={reduce ? 0 : -1}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/40 bg-black/50 px-6 py-3.5 text-sm font-medium text-white shadow-lg shadow-black/40 transition-colors duration-200 hover:bg-black/70"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/40 bg-black/60 px-5 py-3 text-sm font-medium text-white shadow-lg shadow-black/40 transition-colors duration-200 hover:bg-black/75 sm:px-6 sm:py-3.5"
             >
               See our work
             </a>

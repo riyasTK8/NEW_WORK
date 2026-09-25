@@ -56,8 +56,14 @@ export default function HeroSection({ frameCount }) {
     >
       <div
         data-hero-panel=""
+        /*
+         * No min-height. A fixed 560px floor is taller than a landscape phone
+         * (~390px), which pushes the panel past the viewport and breaks the
+         * sticky behaviour exactly where the scrub matters most. h-svh already
+         * tracks the visible viewport on mobile browsers.
+         */
         className={`relative overflow-hidden ${
-          reduce ? "" : "sticky top-0 h-svh min-h-[560px]"
+          reduce ? "" : "sticky top-0 h-svh"
         }`}
       >
         <HeroFrameSequence
@@ -67,33 +73,28 @@ export default function HeroSection({ frameCount }) {
         />
 
         {/*
-         * Legibility only where the type sits. The footage opens near-black
-         * and ends on a bright sky, so the left column needs a bed that holds
-         * across both -- but it stays a gradient, never a panel, and the
-         * right two-thirds of the frame are left alone.
+         * Legibility for white type over BRIGHT footage.
+         *
+         * The previous sequence was near-black and a light scrim sufficed.
+         * This one is a sunlit studio in almost every frame, so the copy needs
+         * a bed or it disappears. But only just enough: an earlier pass sat at
+         * 11-20:1 where 4.5:1 is the requirement, which buried a sunlit studio
+         * under a wash of black. These are tuned to land in the 6-9:1 band --
+         * comfortably legible, with the footage still visibly bright.
          */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#05070e]/85 via-[#05070e]/45 to-transparent lg:via-[#05070e]/25"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-[#05070e] via-[#05070e]/55 to-transparent sm:h-[58%] sm:via-[#05070e]/42"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/70 to-transparent"
+          className="pointer-events-none absolute inset-y-0 left-0 hidden w-2/3 bg-gradient-to-r from-[#05070e]/70 via-[#05070e]/18 to-transparent sm:block lg:w-1/2"
         />
-        {/* Taller on mobile, where the copy sits in the lower third. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-[#05070e] via-[#05070e]/70 to-transparent sm:h-32 sm:via-transparent sm:from-[#05070e]/80"
+          className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/75 to-transparent sm:h-28"
         />
 
-        {/*
-         * The page's one <h1>.
-         *
-         * The visible hero copy is a six-beat narrative — "Ideas Start
-         * Everything." is good storytelling and useless as a ranking signal.
-         * This states plainly what the business does, stays in the
-         * accessibility tree, and leaves the narrative headings as <h2>.
-         */}
         <h1 className="sr-only">
           NexViva — full-stack web and software development studio. Custom ERP
           and CRM platforms, property management systems and AI-powered tools,

@@ -39,101 +39,231 @@ autoplay, no timer, no carousel.
 components/hero/
   HeroSection.jsx        tall container + sticky viewport, owns scroll progress
   HeroFrameSequence.jsx  <canvas> frame layer + streaming loader
-  HeroStory.jsx          the six beats
+  HeroStory.jsx          the story beats
   HeroTextScene.jsx      one beat: fade + rise + blur-to-sharp
   HeroProgress.jsx       hairline progress on the right edge
-  scenes.js             copy and scroll ranges
+  scenes.js              copy and scroll ranges
 ```
 
 ### Frames
 
-`public/images/herosection/` holds **150 source PNGs** and is read-only to this
-project — nothing renames, moves or overwrites them.
+`public/images/herosection/` holds the source and is **read-only** to this
+project — nothing renames, moves or overwrites it.
 
-`npm run hero:frames` re-encodes them for delivery into `public/hero-frames/`:
+`npm run hero:frames` re-encodes it into `public/hero-frames/`. What the
+current source actually contains, measured rather than assumed:
+
+| | |
+| --- | --- |
+| files | 1,800 (`frame_0001` … `frame_1800`), no numbering gaps |
+| **unique images** | **240** — 1,560 files are byte-identical duplicates |
+| dimensions | all 3840×2160, JPEG q95, sRGB, effectively 4:4:4 |
+| defects | `frame_0024.jpg` is **0 bytes**; `grid_preview.jpg` is not a frame |
+
+> **3840×2160 is the container, not the detail.** A 1:1 native-pixel crop of an
+> eye shows eyelashes as soft blobs, an iris with no fibre structure and skin
+> with no pore texture. A genuinely 4K-captured frame at q95 would also weigh
+> 2–5 MB; these weigh 413–704 KB, because there is little high-frequency
+> detail to encode. The frames are an upscale.
+
+Two source defects the pipeline now handles rather than crashes on:
+`grid_preview.jpg` has no digits in its name, so it sorted to index 0 and
+silently became frame 0000 **and** the LCP poster — a black contact sheet at
+the top of the hero. Non-sequence files are now excluded, and unreadable or
+zero-byte frames are skipped with a warning.
 
 | Tier | Width | Weight | Served to |
 | --- | --- | --- | --- |
-| `desktop/` | 1280px | **5.61 MB** | viewport > 768px |
-| `mobile/` | 768px | **2.85 MB** | viewport ≤ 768px, or 2G |
-| `poster.webp` | 1600px | 24 KB | first paint, always |
+| `mobile/` | 1024px | 7.58 MB | viewport ≤ 768px, or 2G |
+| `desktop/` | 1536px | 14.02 MB | `innerWidth × DPR` ≤ 1800 |
+| `ultra/` | 2048px | 18.76 MB | wider |
 
-> **Why the encode step is not optional.** The source frames total **143 MB** —
-> PNG is a lossless archival format, not a delivery one. No browser can stream
-> that for a hero. Re-encoding the same pixels at the same 1280×720 costs
-> 5.6 MB, a 25× reduction with no change in resolution. Re-run the script
-> whenever the source frames change; it rewrites `lib/hero-manifest.json`, which
-> is where the frame count comes from, so the two can never drift.
+> **Each tier is sharpened at its own delivery width, and that is the whole
+> trick.** Shipping bigger frames makes the hero look *softer*. Measured
+> delivered sharpness on a 1540px hero (Laplacian sd ×1000, frames
+> 1/211/900/1800):
+>
+> | encoded at | delivered sharpness | KB/frame |
+> | --- | --- | --- |
+> | **1536** | **3.7 / 3.5 / 6.7 / 8.8** | 41 |
+> | 1920 | 3.0 / 2.9 / 5.6 / 7.2 | 50 |
+> | 3840 native | 2.4 / 2.3 / 4.3 / 5.5 | 114 |
+>
+> Unsharp masking enhances edges at the pixel scale it is applied to. Sharpen
+> at 3840, then let the browser resample down to ~1540, and that enhancement is
+> averaged straight back out.
 
-The encode also strips the generator watermark — a static ~41×45 grey sparkle
-at x1140–1180, y577–621 in the source. It sits ~100px in from both the right
-and bottom edges, so cropping it away would cost far too much composition.
-[lib/hero-inpaint.mjs](lib/hero-inpaint.mjs) instead rebuilds that rectangle
-from the clean pixels on its four borders — the mark is never sampled — then
-box-blurs out the interpolation streaks and feathers the edges back into the
-original. It runs at full source resolution, before downscaling.
+**The enhancement chain** (`enhance()` in the build script) is three stages,
+each scaled to the tier's own width:
+
+1. **CLAHE** — contrast-limited adaptive histogram equalisation. This is what
+   lifts micro-contrast in skin, iris and hair where a global curve cannot: it
+   works per tile, and `maxSlope` caps amplification so flat areas stay clean.
+2. **A tight unsharp pass** (small sigma) for genuine fine detail — lashes,
+   brow hairs, pore structure.
+3. **A wider unsharp pass** for edge definition and depth.
+
+Measured across frames 1/211/900/1795 at delivery scale:
+
+| chain | sharpness | extreme pixels (halo proxy) |
+| --- | --- | --- |
+| no enhancement | 21.8 | 0.27% |
+| single unsharp | 41.5 | 0.39% |
+| **CLAHE + dual unsharp** | **49.2** | **0.30%** |
+
+It is ~19% sharper than a single unsharp pass *and* clips fewer pixels, so the
+extra sharpness is not being bought with halos. Verified visually at 1:1 on the
+eye and on cheek skin: lashes separate, iris edge resolves, skin gains pore
+texture without turning plastic or gritty.
+
+**On AI super-resolution.** Real-ESRGAN is not installed and is not a good fit
+here: it needs PyTorch (~2 GB) with no CUDA available on Intel HD 4600, 4K CPU
+inference runs minutes per frame (240 frames ≈ many hours) and would very
+likely exhaust an 8 GB machine. More importantly it *invents* eyelashes, pores
+and iris fibre that were never captured — which is explicitly ruled out. The
+honest fix for more real detail is a re-export from a higher-resolution master.
 
 ### Scroll
 
-The section is **700svh** (150 frames over ~600vh of travel ≈ 36px of scroll per
-frame, which reads as continuous motion). The inner panel is `sticky top-0`, so
-the viewport holds still while the sequence plays, and About follows naturally
-once the story ends.
+The section is **700svh**. The inner panel is `sticky top-0`, so the viewport
+holds still while the sequence plays, and About follows once the story ends.
 
 `useScroll` gives raw progress; a `useSpring` sits between it and playback so a
 coarse wheel notch (~100px) becomes continuous travel rather than a jump.
 
-**Sub-frame interpolation is what actually removes the judder.** Snapping the
-playhead with `Math.round()` means only 150 distinct images can ever appear, so
-playback steps however smooth the input is. Instead the canvas holds the exact
+**Sub-frame interpolation is what removes the judder.** Snapping the playhead
+with `Math.round()` means only 150 distinct images can ever appear, so playback
+steps however smooth the input is. Instead the canvas holds the exact
 fractional position and cross-fades the two frames either side of it — frame N
-at full opacity, frame N+1 at the fraction — turning 150 stills into a
-continuous blend. Verified: nudging by a fifth of one frame's travel changes
-the canvas every time, and midpoints land monotonically between the two frames
-rather than jumping at the halfway mark.
+at full opacity, frame N+1 at the fraction.
 
 Draws are coalesced to **one per animation frame**. React does not re-render at
 all while scrolling: frames live in a ref, progress is a motion value, and the
 canvas is written directly.
 
-### Rendering
-
-One `<canvas>`, never 150 `<img>` nodes. `cover` is computed by hand so frames
-are never stretched, with a slight 1→1.05 zoom riding the scroll. The backing
-store is sized to the box at up to 2× DPR, and frames stream 6-at-a-time behind
-the poster, scrubbing against whatever has arrived.
-
 ### Story
 
-Six beats pinned to where the footage actually goes — lone developer, code,
-collaboration, the handshake, the ascent, the city. Each fades up out of an 8px
-blur, holds, and fades back out. The first is pinned visible at rest and the
-last at the end; otherwise the hero would load with no text and the closing beat
-would fade out exactly as you reached it.
+Beats are pinned to where the footage goes — the close-up, the studio, the
+product rendering, the team shipping it — then a closing statement with the
+calls to action.
 
-Copy sits in the **left** negative space on desktop, where the footage keeps its
-subjects centre and right. Portrait viewports crop this 16:9 footage to its
-middle — which is where the subjects are — so on mobile the copy drops into the
-lower third instead of sitting on someone's face.
+Copy sits **bottom-left**, where this footage is consistently least busy.
 
-The existing hero CTAs (`Start a project`, `See our work`) land on the final
-beat. While that beat is invisible its links are pulled out of the tab order, so
-keyboard focus never lands on a button nobody can see; the text itself stays in
-the accessibility tree so the six beats read as a narrative.
+**Legibility is tuned by measurement.** This sequence is a sunlit studio in
+almost every frame, so white type needs a bed — but only just enough. An
+earlier pass sat at 11–20:1 where AA asks for 4.5:1, which buried bright
+footage under a wash of black. The scrims now land every tested device in the
+**6.5–19:1** band, with the worst case on a 1280px laptop at 6.50:1.
 
-> **Transformers are passed as functions, never as `(input, output)` arrays.**
-> Given arrays, Framer Motion compiles the binding to a Web Animations API
-> scroll-timeline animation and spreads the keyframes evenly across the timeline
-> instead of honouring the declared stops. The scenes then cross-fade on a
-> schedule nobody wrote, while the inline `style` still reads correctly — which
-> makes it very hard to spot. See `ramp()` in [lib/motion.js](lib/motion.js).
+### Measured performance
+
+On the target machine (i5-4300M, 2 cores, Intel HD 4600, 8 GB), production
+build, 1540×800:
+
+| | |
+| --- | --- |
+| load event | 426 ms |
+| first hero frame on canvas | 189 ms after load |
+| rAF interval during a full scrub | median **16.7 ms** (vsync-locked), p95 34.7 ms, max 39.1 ms |
+| frames over 25 ms | 23 of 244 (~9%) |
+| JS heap | 5 MB |
+| black / frozen frames across the sequence | 0 / 0 |
+| canvas buffer | matches CSS size × DPR (1540×800 at DPR 1) — never a fixed low-res buffer |
+
+> Measure without pixel readback. An early version of this benchmark called
+> `getImageData` on the full canvas each step; that forces a GPU→CPU readback
+> and allocates ~5 MB per call, which reported 53.6 ms median and 152 MB heap.
+> Both numbers were the instrumentation, not the page.
+
+**Loading strategy is chosen by measurement, not by rule of thumb.** A rolling
+window is the textbook answer for long sequences, and above `PRELOAD_ALL_BELOW`
+(400 frames) that is what runs. For *this* 240-frame sequence it measured
+worse — 39.2 ms median and a 108.6 ms worst frame, because the window fetches
+and decodes mid-scrub — against 16.7 ms when all frames are held. 240 frames is
+~14 MB encoded and the browser evicts decoded bitmaps itself.
+
+### Sharpness while scrolling
+
+Cross-fading neighbouring frames is what makes the scrub read as motion rather
+than stepping — but a partial blend is two exposures of a moving subject on
+screen at once, which looks exactly like the image is out of focus. That is
+fine in motion, when the eye cannot resolve detail anyway. It is not fine the
+moment the user stops, which is precisely when they judge sharpness.
+
+So blending is used **only while moving**. 110ms after the last scroll change
+the canvas redraws snapped to the nearest whole frame. Verified by rendering
+the candidate images in-page and comparing: the settled canvas matches a single
+frame at **RMSE 0**, against 20–27 for a 50/50 blend.
+
+The draw-time zoom is also held to 1.5% (it was 5%) — every extra percent is
+another upscale applied to already-soft source.
+
+### Mobile
+
+Phones get their own profile, because the expensive thing on a handset is not
+the tier width — it is `cover` on a tall viewport.
+
+> A 16:9 frame filling a 9:19.5 screen is scaled until its HEIGHT matches, so
+> on an iPhone 14 the 1024px frame was being drawn at **3029px wide — a 2.96x
+> upscale — with only 26% of its width ever on screen.** That was both the
+> softness and the cost: two such draws is 34.7ms on a throttled CPU before a
+> single decode.
+
+Four things follow from that:
+
+- **The mobile tier is cropped to 3:4 before scaling.** A portrait phone now
+  sees **60–75%** of the frame instead of 26%, the face is framed rather than
+  cut off at both edges, and the delivered pixels land near 1:1 instead of
+  being upscaled 3x. The centre crop also removes the watermark region outright.
+- **Tier follows orientation, not device class.** A phone held sideways is
+  852px wide and sails past any width test; it takes the 16:9 tier, because
+  handing it the portrait crop would blow a 3:4 frame up to fill a 2.17 aspect
+  viewport.
+- **Canvas is budgeted by area, not just DPR** (1.2 Mpx on handsets). A DPR cap
+  alone still let an iPad mini build a 1.9 Mpx buffer, which made it the
+  slowest device tested.
+- **Every second frame** (every third in landscape) and **no cross-fade.**
+  Halves the bytes over cellular and the number of decodes; cross-fading
+  doubles `drawImage` cost for a smoothing effect that matters least where
+  frames are furthest apart.
+
+Verified across 13 device profiles, portrait and landscape, DPR 2–4:
+
+| | before | after |
+| --- | --- | --- |
+| rAF median, normal CPU | 16.7ms | **16.7ms** (vsync-locked) |
+| rAF median, 4x CPU throttle | 107–200ms | **16.8–37.1ms** |
+| payload | 12 MB | **5.5 MB** (6.5 MB landscape) |
+| visible frame width (portrait) | 26% | **60–75%** |
+
+No horizontal overflow, hero panel fits the viewport, text block fits
+vertically, zero black frames and zero console errors on every profile;
+contrast behind the copy 12.7–17.2:1.
+
+> 4x throttling on the target i5-4300M is considerably harsher than a real
+> mid-range phone — treat those numbers as a floor, not a forecast.
+
+### Responsive
+
+Type scales on **both axes**. Width alone is not enough: a phone in landscape
+is 852px wide but only ~390px tall, and a width-only scale serves it
+desktop-sized type in a viewport with no vertical room. `max-height` queries
+pull the scale back, drop the body copy below 560px of height, and tighten the
+padding.
+
+The sticky panel carries **no `min-height`** — a fixed 560px floor is taller
+than a landscape phone, which pushes the panel past the viewport and breaks the
+sticky behaviour exactly where the scrub matters.
+
+Verified across ten device profiles (320px phone through 2560px ultrawide,
+portrait and landscape, DPR 1–3): no horizontal overflow, hero panel fits the
+viewport, text block fits vertically, and white type clears AA on every one.
 
 ### Reduced motion
 
 `prefers-reduced-motion` collapses the runway to auto height, drops the canvas,
-keeps the poster, and renders all six beats as a stacked, readable narrative.
-**Zero** sequence frames are fetched — the whole 5.6 MB is skipped. `Save-Data`
-gets the same treatment.
+keeps the poster, and renders every beat as a stacked, readable narrative.
+**Zero** sequence frames are fetched. `Save-Data` gets the same treatment.
 
 ---
 
