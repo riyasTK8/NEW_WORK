@@ -70,11 +70,21 @@ function deviceProfile() {
     };
   }
 
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const variant = window.innerWidth * dpr > 1800 ? "ultra" : "desktop";
-  /* Few cores usually means a low-power machine; drop the second draw. */
+  /*
+   * One desktop tier. Measured on this source, 1536px delivers the most
+   * on-screen detail at normal desktop size; 2560 only wins on a retina
+   * canvas and costs 209 KB/frame, which is not a defensible hero payload.
+   * The canvas is capped at 1.5x DPR to match — rendering denser than the
+   * tier can feed it buys nothing but fill cost.
+   */
   const lowPower = (navigator.hardwareConcurrency || 8) <= 4;
-  return { variant, dprCap: 2, stride: 1, blend: !lowPower, pixelBudget: 4e6 };
+  return {
+    variant: "desktop",
+    dprCap: 1.5,
+    stride: 1,
+    blend: !lowPower,
+    pixelBudget: 4e6,
+  };
 }
 
 export default function HeroFrameSequence({ progress, frameCount, reduce }) {

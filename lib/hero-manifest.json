@@ -3,8 +3,7 @@
   "sourceFrames": 240,
   "variants": {
     "mobile": 768,
-    "desktop": 1536,
-    "ultra": 2048
+    "desktop": 1536
   },
   "generatedFrom": "public/images/herosection"
 }

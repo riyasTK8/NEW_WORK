@@ -52,41 +52,45 @@ const FRAMES = Infinity;
  * detail (a 1:1 crop of an eye shows lashes as blobs, no iris fibre, no skin
  * pore structure), which is why no tier recovers more by being larger.
  */
+/*
+ * Widths and quality chosen by measurement on THIS source, at the size the
+ * frame is actually displayed.
+ *
+ * This export has been run through an AI upscaler, so unlike the previous
+ * source it carries real high-frequency detail. Delivered sharpness at a
+ * 1540px hero (Laplacian variance), with the enhancement chain applied:
+ *
+ *   1280px  571      1920px  601      2560px  674
+ *   1536px  723  <-- best    3836px  713
+ *
+ * 1536 wins at normal desktop size and costs the least of the contenders.
+ * Quality barely moves sharpness (q82 -> 715, q88 -> 723) but costs 36% more
+ * bytes, so q82. There is no `ultra` tier: 2560 only wins on a retina canvas
+ * and would cost 209 KB/frame, which is not a defensible hero payload.
+ */
 const variants = [
   {
     dir: "mobile",
     /*
-     * Cropped to 3:4 before scaling.
-     *
-     * A 16:9 frame filling a 9:19.5 phone via `cover` shows only 26% of its
-     * width — on this footage that means the subject's eyes fall off both
-     * edges and you get forehead and nose. Cropping to 3:4 first means a
-     * portrait phone sees ~60% of the frame instead, the face is framed, and
-     * the delivered pixels land near 1:1 rather than being upscaled ~3x.
-     * The centre crop also removes the watermark region entirely.
+     * Cropped to 3:4 before scaling. A 16:9 frame filling a 9:19.5 phone via
+     * `cover` shows only ~26% of its width, which on this footage cuts both
+     * eyes off the edges. Cropping first shows ~60-75% and lands the pixels
+     * near 1:1. The centre crop also drops all three watermark regions.
      */
     aspect: 3 / 4,
     width: 768,
-    quality: 86,
-    clahe: { width: 43, height: 43, maxSlope: 4 },
+    quality: 84,
+    clahe: { width: 32, height: 32, maxSlope: 4 },
     s1: { sigma: 0.35, m1: 1.2, m2: 0.9 },
-    s2: { sigma: 1.2, m1: 0.9, m2: 0.5 },
+    s2: { sigma: 1.0, m1: 0.9, m2: 0.5 },
   },
   {
     dir: "desktop",
     width: 1536,
-    quality: 88,
+    quality: 82,
     clahe: { width: 64, height: 64, maxSlope: 4 },
     s1: { sigma: 0.5, m1: 1.2, m2: 0.9 },
     s2: { sigma: 1.8, m1: 0.9, m2: 0.5 },
-  },
-  {
-    dir: "ultra",
-    width: 2048,
-    quality: 86,
-    clahe: { width: 85, height: 85, maxSlope: 4 },
-    s1: { sigma: 0.67, m1: 1.2, m2: 0.9 },
-    s2: { sigma: 2.4, m1: 0.9, m2: 0.5 },
   },
 ];
 
